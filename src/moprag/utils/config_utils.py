@@ -59,10 +59,15 @@ class BaseConfig:
     )
 
     plot_namepace: str = field(
-        default="moprag_graph_plod_node_db",
+        default="moprag_graph_plot_node_db",
         metadata={"help":"path to your text embedding database"}
     )
 
+
+    story_namepace: str = field(
+        default="moprag_graph_story_node_db",
+        metadata={"help":"path to your text embedding database"}
+    )
 
     pic_path: str = field(
         default="./data/picture",
@@ -88,7 +93,7 @@ class BaseConfig:
     )
 
     multi_round_number: int = field(
-        default=3,
+        default=2,
         metadata={"help":"Number of multi rounds"}
     )
 

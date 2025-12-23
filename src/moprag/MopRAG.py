@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 from .utils.embmodel_utils import embeddingmodel
-from .embedding_store import GraphEmbeddingStore,Plot_GraphEmbeddingStore
+from .embedding_store import GraphEmbeddingStore,Plot_GraphEmbeddingStore,Story_GraphEmbeddingStore
 from .utils.chunk_utils import BChunkModel
 from .utils.summarization_utils import LLMSummarizationModel
 from .utils.memery_utils import Memory
@@ -72,6 +72,15 @@ class MopRAG:
             batch_size=global_config.embedding_batch_size,
             plot_namespace=global_config.plot_namepace
         ) 
+
+        self.story_embedding_store = Story_GraphEmbeddingStore(
+            embedding_model=self.embedding_model,
+            db_filename=global_config.embedding_db_path,
+            pic_filename=global_config.pic_path,
+            batch_size=global_config.embedding_batch_size,
+            story_namespace=global_config.story_namepace,
+            SummarizerAgent=self.summarizer,
+        ) 
         
 
         self.PoolAgent=PoolAgent(
@@ -82,7 +91,8 @@ class MopRAG:
             temperature=global_config.temperature
         )
 
-        self.memory=Memory(memory_path=global_config.memory_path)
+        self.memory=Memory(memory_path=global_config.memory_path,
+                           agent= self.PoolAgent)
 
 
 
@@ -94,8 +104,8 @@ class MopRAG:
         entities=[]
         Triples=[]
         entities_dicts=[]
-        
-        for chunk in tqdm(chunks[0:20]):
+        # chunks=chunks
+        for chunk in tqdm(chunks):
             entity=self.summarizer.LLMEntityExtract(
                 context=chunk,)
             # print(entity)
@@ -111,8 +121,10 @@ class MopRAG:
             # print(entities_dicts)
         # print(len(entities_dicts))
         
-        self.detail_embedding_store.insert(chunks[0:20], entities)
+        self.detail_embedding_store.insert(chunks, entities)
+        self.story_embedding_store.insert(chunks, entities)
         self.plot_embedding_store.insert(entities_dicts)
+     
      
     
     def query(self, query: str):
@@ -122,13 +134,12 @@ class MopRAG:
             return self.PoolAgent.danswerprocess(query)
         else: 
             print("need to reason path!")
-            character_graph, character_contents, detail_graph, detail_contents=self._data_load()  
-            character_paths=self.retrieve(query=query,graph=character_graph,contents= character_contents,top_k=5)
-            detail_paths=self.retrieve(query=query,graph=detail_graph,contents= detail_contents,top_k=5)
-
+             
+            # character_paths=self.retrieve(query=query,graph=character_graph,contents= character_contents,top_k=5)
+            # detail_paths=self.retrieve(query=query,graph=detail_graph,contents= detail_contents,top_k=5)
+            answer=self.Cognitive_control(query)
             
-            self.Cognitive_control(query,  detail_paths,character_paths,detail_graph, detail_contents ,character_graph, character_contents)
-            return "Reasoning completed."
+            return answer
 
 
     # def _load_Triple_graph_data(self,path,contents):
@@ -143,22 +154,105 @@ class MopRAG:
     #         print(Triple_data)
 
 
-    def Muti_Round_Query(self,query:str):
-        pass
+    def Muti_Round_Query(self, init_query,init_contents,round):
+        
+        query_list=[]
+        init_query=init_query
+        contents=init_contents
+
+        round_Record=0
+        while round_Record<round:
+            print(round_Record)
+            query_str= "\n".join(query_list)
+            self_prob_list=self.self_prob(init_query, query_str ,  contents)
+            
+            for subquery in self_prob_list:
+                print(subquery)
+
+                character_graph, character_contents, detail_graph, detail_contents,story_graph,story_contents=self._data_load() 
+                
+                
+                character_paths=self.retrieve(query=subquery,graph=character_graph,contents= character_contents,top_k=5)
+                detail_paths=self.retrieve(query=subquery,graph=detail_graph,contents= detail_contents,top_k=5)
+                story_paths=self.retrieve(query=subquery,graph=story_graph,contents= story_contents,top_k=5)
+
+                character_path_inf=self.path_ext(subquery,character_paths,character_graph,character_contents)
+                detail_path_inf=self.path_ext(subquery,detail_paths,detail_graph,detail_contents)
+                story_path_inf=self.path_ext(subquery,story_paths,story_graph,story_contents)
+
+                print(character_path_inf,"\n",detail_path_inf)
+                #mem_enc
+                inf=self.mem_enc(subquery,detail_path_inf,character_path_inf,story_path_inf)
+                print(inf)
+
+                
+            round_Record=round_Record+1
+        
+            #mem_dec
+            inf=self.mem_dec(subquery)
+            print(inf)
+            answer=self.try_answer(subquery,inf)
+            if answer is None:
+                continue
+            else:
+                print("Final Answer: ",answer)
+                break
+        if answer is None:
+            return "I don't know."
+        else: 
+            return answer
+
+
+            
+           
     
 
-    def Cognitive_control(self, query,  detail_paths,character_paths,detail_graph, detail_contents ,character_graph, character_contents,):
+    def Cognitive_control(self, query:str):
         
         #path_ext
+        character_graph, character_contents, detail_graph, detail_contents,story_graph,story_contents=self._data_load() 
+        print(len(story_graph),len(story_contents))
+        character_paths=self.retrieve(query=query,graph=character_graph,contents= character_contents,top_k=5)
+        detail_paths=self.retrieve(query=query,graph=detail_graph,contents= detail_contents,top_k=5)
+        story_paths=self.retrieve(query=query,graph=story_graph,contents= story_contents,top_k=5)
+
         character_path_inf=self.path_ext(query,character_paths,character_graph,character_contents)
         detail_path_inf=self.path_ext(query,detail_paths,detail_graph,detail_contents)
+        story_path_inf=self.path_ext(query,story_paths,story_graph,story_contents)
+        
         print(character_path_inf,"\n",detail_path_inf)
         
         #mem_enc
-        inf=self.mem_enc(query,detail_path_inf,character_path_inf,story_path_inf=None)
+        inf=self.mem_enc(query,detail_path_inf,character_path_inf,story_path_inf)
         print(inf)
+        #mem_dec
+        inf=self.mem_dec(query)
+        print(inf)
+
+        answer=self.try_answer(query,inf)
+        if answer is None:
+            print("cannot answer derestly!")
+            Manswer=self.Muti_Round_Query(query,inf,self.multi_round_number)
+            return Manswer
+        else:
+            print("Final Answer: ",answer)
+            return answer
+        #try_answer
+        # try_answer=self.PoolAgent.final_answer(init_query,inf)
+    
+    def self_prob(self,query, pre, cur):
+
+
+        self_pro_list=self.PoolAgent.self_pro(query, pre, cur)
+
+        return  self_pro_list
         
-        pass
+
+    def mem_dec(self,query):
+
+        inf=self.memory.mem_pool_fuse(query)
+
+        return inf
 
     def mem_enc(self,query, detail_path_inf,character_path_inf,story_path_inf):
         detail_path_inf = "" if detail_path_inf is None else detail_path_inf
@@ -170,6 +264,8 @@ class MopRAG:
         self.memory.add_memory_pool(query, inf)
 
         return inf
+    
+    
 
     
 
@@ -183,7 +279,6 @@ class MopRAG:
                 node_data=contents[contents['hash_id']==node]
                 node_text=node_data['content'].values[0]
                 inf+=node_text+"\n"
-            print(inf)
             path_inf=self.PoolAgent.path_ext(query,inf)
             path_infs=path_infs+path_inf+"\n"
             sum_path_inf=self.PoolAgent.path_ext(query,path_infs)
@@ -199,7 +294,10 @@ class MopRAG:
         detail_graph=self.detail_embedding_store.graph
         detail_contents=self.detail_embedding_store.contents
 
-        return character_graph, character_contents, detail_graph, detail_contents
+        story_graph=self.story_embedding_store.graph
+        story_contents=self.story_embedding_store.contents
+
+        return character_graph, character_contents, detail_graph, detail_contents,story_graph,story_contents
 
 
 
@@ -362,7 +460,7 @@ class MopRAG:
 
     def _prune_by_entity_alignment_extended(self,query,query_entity,graph,contents):
 
-
+        
         target_nodes=[]
         
         similar_nodes=self.similar_top_K(query_emb=self.embedding_model.batch_encode(query),
@@ -394,6 +492,8 @@ class MopRAG:
 
         graph = graph.subgraph(target_nodes).copy()
         contents = contents[contents['hash_id'].isin(target_nodes)]
+
+        
         return graph, contents
 
 
@@ -402,7 +502,7 @@ class MopRAG:
         
         if len(graph) == 0:
             print("none graph data")
-        
+       
         graph_emb=contents['embedding'].tolist()
         
         query_emb = self.embedding_model.batch_encode(query)
@@ -462,7 +562,13 @@ class MopRAG:
                 raise ValueError(f"Path segments not contiguous: {merged[-1]} != {segment[0]}")
         return merged
     
-    
+    def try_answer(self,query,context):
+
+        answer=self.PoolAgent.try_answer(query,context)
+        
+        if "No"  in answer:
+            return None
+        return answer
 
     # def query(self, docs):
 

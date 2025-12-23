@@ -1,15 +1,19 @@
 import os
+import re
 import logging
 from .agent_utils import PoolAgent
+from .prompts.mem_dec import mem_dec_prompt
 
 logger = logging.getLogger(__name__)
 
 class Memory:
-    def __init__(self, memory_path,capacity=10):
+    def __init__(self, memory_path,agent,capacity=10):
         
         if not os.path.exists(memory_path):
             logger.info(f"Creating memory directory: {memory_path}")
             os.makedirs(memory_path, exist_ok=True)
+
+        self.agent=agent
 
         self._memory_load()
 
@@ -34,15 +38,28 @@ class Memory:
         self.path_memory.clear()
         pass
         
-       
+
+    def mem_pool_fuse(self,init_query):
+        
+        prompt=""
+        for item in self.path_memory:
+            prompt=prompt+"[Q] "+item["query"] +"\n" + "[A] "+item["inf"]+"\n"
+        
+        messages=mem_dec_prompt(init_query,prompt)
+
+        response = self.agent._call_llm(messages=messages)
+        response = re.sub(r'<think>.*?</think>\s*', '', response, flags=re.DOTALL)
+        
+        return response
 
 
-    def add_medium_memory(self, query , Information):     
+        
 
-        self.medium_memory.append({"query":query,"Information":Information})
-        print(self.medium_memory)
-        self.short_memory.clear()
            
+
+
+
+
 
 # # 示例使用
 # memory = Memory(capacity=5)

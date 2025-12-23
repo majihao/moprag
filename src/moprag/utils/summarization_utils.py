@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_random_exponential
 
-from .prompts import ner,triple_extraction,chunk_eneities_summary
+from .prompts import ner,triple_extraction,chunk_eneities_summary,story_summary
 
 
 logger = logging.getLogger(__name__)
@@ -130,17 +130,23 @@ class LLMSummarizationModel(BaseSummarizationModel):
         except (ValueError, SyntaxError) as e:
             return {}
 
-
-
-
-
-if __name__=="__main__":
     
-    LLM=LLMSummarizationModel(model_name="Qwen3-14B", llm_base_url="http://localhost:12345/v1")
+    def LLMStorySummaryextract(self,context)-> dict:
+        messages=story_summary.story_summary_prompt(context)
+        response=self.LLMaction(messages) 
+        response = re.sub(r'<think\b[^>]*>.*?</think\s*>','',response,flags=re.DOTALL | re.IGNORECASE)
+    
+        return response
 
-    list=LLM.LLMEntityExtract("Jun is a Dog")
-    lista=LLM.LLMTripleextract("Jun is a Dog",list)
-    dict=LLM.LLMSummaryextract("Jun is a Dog",list)
-    print(dict.type)
+
+
+# if __name__=="__main__":
+    
+#     LLM=LLMSummarizationModel(model_name="Qwen3-14B", llm_base_url="http://localhost:12345/v1")
+
+#     list=LLM.LLMEntityExtract("Jun is a Dog")
+#     lista=LLM.LLMTripleextract("Jun is a Dog",list)
+#     dict=LLM.LLMSummaryextract("Jun is a Dog",list)
+#     print(dict.type)
         
   

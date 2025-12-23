@@ -9,6 +9,8 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
+
+
 # from .utils.embmodel_utils import embeddingmodel
 
 logger = logging.getLogger(__name__)
@@ -61,7 +63,7 @@ class GraphEmbeddingStore:
 
         texts_embeddings = self.embedding_model.batch_encode(texts)
         
-        print("story",texts_embeddings)
+        
         for idx, text in enumerate(texts):
             
             hashid=compute_mdhash_id(text, prefix="")
@@ -313,6 +315,184 @@ class Plot_GraphEmbeddingStore:
 
         pass
     
+
+
+
+
+class Story_GraphEmbeddingStore:
+
+    def __init__(self, embedding_model: str,db_filename: str, pic_filename: str,batch_size: int, story_namespace: str,SummarizerAgent):
+        
+        self.embedding_model = embedding_model
+        self.batch_size = batch_size
+        self.namespace = story_namespace
+        self.summarizer = SummarizerAgent
+
+        if not os.path.exists(db_filename):
+            logger.info(f"Creating working directory: {db_filename}")
+            os.makedirs(db_filename, exist_ok=True)
+        
+        if not os.path.exists(pic_filename):
+            logger.info(f"Creating working directory: {pic_filename}")
+            os.makedirs(pic_filename, exist_ok=True)
+
+        self.filename_graph = os.path.join(
+            db_filename, f"vdb_{self.namespace}.pkl"
+        )
+
+        self.filename_content = os.path.join(
+            db_filename, f"vdb_{self.namespace}.parquet"
+        )
+        
+        self._load_data()
+    
+    def _load_data(self):
+        
+        if os.path.exists(self.filename_graph):
+
+            with open(self.filename_graph, "rb") as f:
+                self.graph = pickle.load(f)
+            self.contents = pd.read_parquet(self.filename_content)
+        else:
+            self.graph = nx.Graph()
+            self.contents = pd.DataFrame(columns=["hash_id","content","embedding","entity"])
+    
+
+    def insert(self,texts: List[str], entites: List[str], merge_size=8):
+        print(len(self.graph),len(self.contents))
+        texts_embeddings = self.embedding_model.batch_encode(texts)
+        print(len(texts_embeddings))
+       
+        for idx, text in enumerate(texts):
+            
+            hashid=compute_mdhash_id(text, prefix="")
+
+            if not self.graph.has_node(hashid):
+
+                self.graph.add_node(hashid, 
+                                    content=text, 
+                                    embedding=texts_embeddings[idx].tolist(), 
+                                    entity=entites[idx],
+                                    type="text"
+                                    )
+                
+                self.contents = pd.concat([self.contents, pd.DataFrame([{
+                    "hash_id": hashid, 
+                    "content": text,
+                    "embedding": texts_embeddings[idx].tolist(),
+                    "entity": entites[idx]
+                    }])], ignore_index=True)
+            
+
+            else:
+                continue
+        
+        print("story",len(self.contents))   
+        print("story",len(self.graph))
+            
+        hash_ids = self.contents['hash_id'].tolist()
+        for i in range(len(hash_ids) - 1):
+            self.graph.add_edge(
+                hash_ids[i], 
+                hash_ids[i + 1], 
+                relation="next"
+            )
+        
+        for i in range(0, len(self.contents), merge_size):
+            merge_text=""
+            node_ids=[]
+            entites=[]
+            for idx, row in self.contents.iloc[i:i+merge_size].iterrows():
+                
+                merge_text=self.merge_two_chunks(merge_text,row["content"])
+                node_ids.append(row["hash_id"])
+                entites.extend(row["entity"])
+
+            summery=self.summarizer.LLMStorySummaryextract(merge_text)
+            hashid=compute_mdhash_id(summery, prefix="")
+            
+            texts_embedding = self.embedding_model.batch_encode(summery)
+            
+            self.graph.add_node(hashid, 
+                                    content=summery, 
+                                    embedding=texts_embedding[0].tolist(), 
+                                    entity=entites,
+                                    type="text"
+                                    )
+            
+            self.contents = pd.concat([self.contents, pd.DataFrame([{
+                "hash_id": hashid, 
+                "content": summery,
+                "embedding": texts_embedding[0].tolist(),
+                "entity": entites
+                }])], ignore_index=True)
+        
+            for node_id in node_ids:
+                self.graph.add_edge(
+                    hashid, 
+                    node_id, 
+                    relation="summery"
+                )
+        
+        print("story",len(self.contents))   
+        print("story",len(self.graph))
+        self._save_data()
+
+        # for u, v, data in self.graph.edges(data=True):
+        #     print(f"Edge: {u} -> {v}, Attributes: {data}")
+
+
+        pos = nx.spring_layout(self.graph)  # 固定 seed 保证可复现
+
+      
+        nx.draw_networkx_nodes(self.graph, pos, node_size=50, node_color="lightblue")
+        nx.draw_networkx_labels(self.graph, pos)
+
+      
+        share_edges = [(u, v) for u, v, d in self.graph.edges(data=True) if d.get('relation') == "summery"]
+        next_edges = [(u, v) for u, v, d in self.graph.edges(data=True) if d.get('relation') == 'next']
+
+       
+        nx.draw_networkx_edges(self.graph, pos, edgelist=share_edges, edge_color='blue', style='solid', alpha=0.7)
+
+       
+        nx.draw_networkx_edges(self.graph, pos, edgelist=next_edges, edge_color='green', style='dashed', alpha=0.8)
+
+        plt.savefig("./data/picture/my_plot3.png", dpi=300, bbox_inches='tight')
+        plt.show()
+        plt.close()
+
+    
+     
+    def merge_two_chunks(self, chunk1: str, chunk2: str) -> str:
+
+        if not chunk1:
+            return chunk2
+        if not chunk2:
+            return chunk1
+
+        max_overlap = 0
+        min_len = min(len(chunk1), len(chunk2))
+        
+        for i in range(min_len, 0, -1):
+            if chunk1[-i:] == chunk2[:i]:
+                max_overlap = i
+                break  
+          
+        return chunk1 + chunk2[max_overlap:]
+
+
+    def _save_data(self):
+
+        self.contents.to_parquet(self.filename_content, index=False)
+
+        with open(self.filename_graph, "wb") as f:
+            pickle.dump(self.graph, f)
+            
+    
+    def Sliding_window_summary(self):
+
+        pass
 
 
 # if __name__ == "__main__":

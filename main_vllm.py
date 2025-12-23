@@ -27,7 +27,7 @@ document=data['corpus']
 
 
 config=BaseConfig(
-    llm_base_url="http://localhost:12345/v1",
+    llm_base_url="http://localhost:12344/v1",
     llm_api_key="your-llm-api-key-here",
     llm_name="Qwen3-14B",
     embedding_model_name="/data0/models/embeddingmodels/bge-base-en",
@@ -42,7 +42,7 @@ doc=document
 qal=[{}]
 
 moprag.index(docs=doc)
-moprag.query("Mr. Kendrew argues that a man with a substantial inheritance needs a wife from high society to secure what?")
+answer=moprag.query("Mr. Kendrew argues that a man with a substantial inheritance needs a wife from high society to secure what?")
 
 # moprag.query("Mr. Kendrew argues that a man with a substantial inheritance needs a wife from high society to secure what?")
 
