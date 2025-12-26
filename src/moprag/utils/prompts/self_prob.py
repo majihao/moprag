@@ -13,6 +13,7 @@ Exclude content that has already been covered in previous questions or implicitl
 Generate Questions:
 Based on the information that is truly still missing, generate 1 to 3 concise, direct, and focused follow-up questions, ensuring that:
 Each question must directly contribute to answering the original query.
+Please give a direct questions; do not overthink it.
 Please follow the dialogue format strictly.
 """
 

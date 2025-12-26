@@ -4,8 +4,8 @@ Note:
 Only use facts explicitly mentioned in the text;
 Do not speculate, explain, infer, or add any unmentioned content;
 If no information related to the query is found in the text, please answer: "No relevant information found in the text.";
-Do not add personal opinions, background knowledge, or examples;
-Keep your answer concise, objective, and faithful to the original text.
+Please extract the relevant original text directly from the article. Do not add personal opinions, background knowledge, or examples;
+Don't overthink, just retell the original content directly.
 """
 
 one_shot_ner_paragraph = """
@@ -15,7 +15,7 @@ Query: What were the characteristics of the woman who took the item?
 
 
 one_shot_ner_output = """
-She wore a black trench coat and a silver snake ring on her left hand. She spoke with a southern accent. She paid with an old 1995 hundred-yuan banknote.
+I only remember she was wearing a silver snake ring on her left hand and spoke with a southern accent.  Oh, and she paid with an old 1995 hundred-yuan banknote.
 """
 
 

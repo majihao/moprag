@@ -25,7 +25,7 @@ class BaseConfig:
     )
 
     max_completion_tokens: int =field(
-        default=1500,
+        default=2000,
         metadata={"help":"path to your embedding model"}
     )
     temperature: int =field(
@@ -48,6 +48,10 @@ class BaseConfig:
     )
     
     
+
+
+
+
     embedding_db_path: str = field(
         default="./data/moprag_text_embedding_db",
         metadata={"help":"path to your text embedding database"}
@@ -62,7 +66,6 @@ class BaseConfig:
         default="moprag_graph_plot_node_db",
         metadata={"help":"path to your text embedding database"}
     )
-
 
     story_namepace: str = field(
         default="moprag_graph_story_node_db",
@@ -87,7 +90,16 @@ class BaseConfig:
     )
     
     
+
+
+
+
     path_explorations_number: int = field(
+        default=3,
+        metadata={"help":"Number of path explorations"}
+    )
+
+    path_extect_slide_windows_size: int = field(
         default=3,
         metadata={"help":"Number of path explorations"}
     )

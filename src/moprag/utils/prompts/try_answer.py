@@ -6,6 +6,7 @@ If the contextual information contains enough information to directly and clearl
 If the contextual information is missing, ambiguous, or does not support a definitive answer, please output only: No;
 Do not fabricate, speculate, infer, or use external knowledge;
 Do not output any other text, punctuation, spaces, or formatting.
+Please give a direct answer; do not overthink it.
 """
 
 one_shot_ner_paragraph = """

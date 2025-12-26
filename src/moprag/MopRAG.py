@@ -7,6 +7,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 import networkx as nx
+from collections import defaultdict
+from types import SimpleNamespace
 
 from .utils.embmodel_utils import embeddingmodel
 from .embedding_store import GraphEmbeddingStore,Plot_GraphEmbeddingStore,Story_GraphEmbeddingStore
@@ -14,6 +16,7 @@ from .utils.chunk_utils import BChunkModel
 from .utils.summarization_utils import LLMSummarizationModel
 from .utils.memery_utils import Memory
 from .utils.agent_utils import PoolAgent
+from .rerank import VLLMWrapper, DSPyFilter
 
 from tqdm import tqdm
 
@@ -41,10 +44,21 @@ class MopRAG:
         self.max_completion_tokens=global_config.max_completion_tokens
         self.temperature=global_config.temperature
         self.stop_sequence=global_config.stop_sequence
+        
+        self.path_extect_slide_windows=global_config.path_extect_slide_windows_size
 
         self.embedding_model = embeddingmodel(
             model_path=global_config.embedding_model_name
         )
+
+        
+        narrtiverag = SimpleNamespace(
+                llm_name=global_config.llm_name,  
+                rerank_dspy_file_path=None,
+                llm_model=VLLMWrapper(base_url=global_config.llm_base_url, model_name=global_config.llm_name, api_key=global_config.llm_api_key)
+            )
+        self.dspy_filter = DSPyFilter(narrtiverag)
+          
         
         self.chunk_model=BChunkModel()
 
@@ -90,7 +104,7 @@ class MopRAG:
             stop_sequence=global_config.stop_sequence,
             temperature=global_config.temperature
         )
-
+        
         self.memory=Memory(memory_path=global_config.memory_path,
                            agent= self.PoolAgent)
 
@@ -104,11 +118,11 @@ class MopRAG:
         entities=[]
         Triples=[]
         entities_dicts=[]
-        # chunks=chunks
+        # chunks=chunks[:20]
         for chunk in tqdm(chunks):
             entity=self.summarizer.LLMEntityExtract(
                 context=chunk,)
-            # print(entity)
+
 
             # Triple=self.summarizer.LLMTripleextract(chunk,entity)
 
@@ -135,8 +149,6 @@ class MopRAG:
         else: 
             print("need to reason path!")
              
-            # character_paths=self.retrieve(query=query,graph=character_graph,contents= character_contents,top_k=5)
-            # detail_paths=self.retrieve(query=query,graph=detail_graph,contents= detail_contents,top_k=5)
             answer=self.Cognitive_control(query)
             
             return answer
@@ -211,21 +223,29 @@ class MopRAG:
         
         #path_ext
         character_graph, character_contents, detail_graph, detail_contents,story_graph,story_contents=self._data_load() 
-        print(len(story_graph),len(story_contents))
+        
+        print("character_graph nodes:",len(character_graph))
+        print("character_graph nodes:",len(character_contents))
+        print("detail_graph nodes:",len(detail_graph))
+        print("detail_graph nodes:",len(detail_contents))
+        print("story_graph nodes:",len(story_graph))
+        print("story_graph nodes:",len(story_contents))
         character_paths=self.retrieve(query=query,graph=character_graph,contents= character_contents,top_k=5)
         detail_paths=self.retrieve(query=query,graph=detail_graph,contents= detail_contents,top_k=5)
         story_paths=self.retrieve(query=query,graph=story_graph,contents= story_contents,top_k=5)
+                  
 
         character_path_inf=self.path_ext(query,character_paths,character_graph,character_contents)
         detail_path_inf=self.path_ext(query,detail_paths,detail_graph,detail_contents)
         story_path_inf=self.path_ext(query,story_paths,story_graph,story_contents)
         
-        print(character_path_inf,"\n",detail_path_inf)
+        print(character_path_inf,"\n",detail_path_inf,"\n",story_path_inf)
         
         #mem_enc
         inf=self.mem_enc(query,detail_path_inf,character_path_inf,story_path_inf)
         print(inf)
         #mem_dec
+
         inf=self.mem_dec(query)
         print(inf)
 
@@ -237,6 +257,8 @@ class MopRAG:
         else:
             print("Final Answer: ",answer)
             return answer
+        
+        # return answer
         #try_answer
         # try_answer=self.PoolAgent.final_answer(init_query,inf)
     
@@ -306,9 +328,12 @@ class MopRAG:
         query_entity=self.summarizer.LLMEntityExtract(context=query)
        
         pruned_graph,pruned_contents=self.Prune_Weaver(query=query,query_eneities=query_entity,graph=graph,contents=contents)
+
         
         paths=self.Path_Cognizer(query=query,graph=pruned_graph,contents=pruned_contents,toprank=top_k)
         
+        paths=self.merge_connected_paths_safe(paths,self.path_extect_slide_windows)
+
         print(paths)
 
         return paths
@@ -349,7 +374,17 @@ class MopRAG:
         node_query_sim = dict(zip(hashid, sim_scores))
         
         top2 = sorted(node_query_sim.items(), key=lambda x: x[1], reverse=True)[0:toprank]
+
         top2_nodes = [node for node, score in top2]
+        #rerank
+        # top2 = sorted(node_query_sim.items(), key=lambda x: x[1], reverse=True)[0:toprank]
+        # print("top2",top2)
+
+        # top2_nodes = [node for node, score in top2]
+        # self.Rerank(query,top2_nodes,content,toprank)
+
+
+
         top2_sorted_by_appearance = [node for node in hashid if node in set(top2_nodes)]
         
         path=[]
@@ -362,7 +397,7 @@ class MopRAG:
         return path
 
     
-    def _semantic_path_selection(self,query,graph,contents,source,target,alpha=0.6,beta=0.4,max_path_len=4,top_k=1,decay_lambda=0.5):
+    def _semantic_path_selection(self,query,graph,contents,source,target,alpha=0.5,beta=0.5,max_path_len=4,top_k=1,decay_lambda=0.5):
 
         
         temp_graph_data=graph
@@ -540,6 +575,7 @@ class MopRAG:
     def similar_top_K(self, query_emb,emb_list,hashid_list,top_k):
 
         query_emb = np.array(query_emb).reshape(1, -1)  # shape: (1, d)
+
         emb_array = np.array(emb_list)                  # shape: (n, d)
 
         similarities = cosine_similarity(query_emb, emb_array).flatten()  # shape: (n,)
@@ -569,6 +605,48 @@ class MopRAG:
         if "No"  in answer:
             return None
         return answer
+
+    
+    def Rrerank(self,query,hashids,content,top_K)->list:
+        
+
+        pass
+    
+
+
+    def merge_connected_paths_safe(self, paths, path_extect_slide_windows)->list:
+        next_map = {}
+        prev_map = {}
+        all_nodes = set()
+
+        # 构建链式映射
+        for p in paths:
+            for i in range(len(p) - 1):
+                # 如果已有映射，说明有分叉或冲突（可选报错）
+                if p[i] in next_map and next_map[p[i]] != p[i+1]:
+                    print(f"Warning: {p[i]} has multiple successors!")
+                next_map[p[i]] = p[i+1]
+                prev_map[p[i+1]] = p[i]
+                all_nodes.add(p[i])
+            all_nodes.add(p[-1])
+
+        # 找起点（无前驱）
+        starts = [n for n in all_nodes if n not in prev_map]
+
+        merged = []
+        for start in starts:
+            path = []
+            current = start
+            visited = set()
+            while current is not None and current not in visited:
+                visited.add(current)
+                path.append(current)
+                current = next_map.get(current)
+            merged.append(path)
+        merged = merged[0]
+        merged = [merged[i:i+3] for i in range(0, len(merged), 3)]
+
+        return merged
 
     # def query(self, docs):
 

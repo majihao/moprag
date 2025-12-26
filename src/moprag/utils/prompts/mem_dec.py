@@ -11,6 +11,7 @@ Integrate all factual information related to the initial query from all previous
 Filter out irrelevant follow-up questions, redundant information, or off-topic content;
 Generate a concise, coherent, and well-structured text that directly addresses the initial query;
 Do not add any information, speculation, or explanations that are not explicitly provided in the context;
+Please give a direct answer; do not overthink it.
 """
 
 one_shot_ner_paragraph = """

@@ -359,7 +359,7 @@ class Story_GraphEmbeddingStore:
     
 
     def insert(self,texts: List[str], entites: List[str], merge_size=8):
-        print(len(self.graph),len(self.contents))
+        print("self",len(self.graph),len(self.contents))
         texts_embeddings = self.embedding_model.batch_encode(texts)
         print(len(texts_embeddings))
        
@@ -367,25 +367,21 @@ class Story_GraphEmbeddingStore:
             
             hashid=compute_mdhash_id(text, prefix="")
 
-            if not self.graph.has_node(hashid):
-
-                self.graph.add_node(hashid, 
-                                    content=text, 
-                                    embedding=texts_embeddings[idx].tolist(), 
-                                    entity=entites[idx],
-                                    type="text"
-                                    )
-                
-                self.contents = pd.concat([self.contents, pd.DataFrame([{
-                    "hash_id": hashid, 
-                    "content": text,
-                    "embedding": texts_embeddings[idx].tolist(),
-                    "entity": entites[idx]
-                    }])], ignore_index=True)
             
 
-            else:
-                continue
+            self.graph.add_node(hashid, 
+                                content=text, 
+                                embedding=texts_embeddings[idx].tolist(), 
+                                entity=entites[idx],
+                                type="text"
+                                )
+            self.contents = pd.concat([self.contents, pd.DataFrame([{
+                "hash_id": hashid, 
+                "content": text,
+                "embedding": texts_embeddings[idx].tolist(),
+                "entity": entites[idx]
+                }])], ignore_index=True)
+            
         
         print("story",len(self.contents))   
         print("story",len(self.graph))
@@ -399,9 +395,12 @@ class Story_GraphEmbeddingStore:
             )
         
         for i in range(0, len(self.contents), merge_size):
+            if i ==0:
+                continue
             merge_text=""
             node_ids=[]
             entites=[]
+            new_entites=[]
             for idx, row in self.contents.iloc[i:i+merge_size].iterrows():
                 
                 merge_text=self.merge_two_chunks(merge_text,row["content"])
@@ -409,23 +408,39 @@ class Story_GraphEmbeddingStore:
                 entites.extend(row["entity"])
 
             summery=self.summarizer.LLMStorySummaryextract(merge_text)
+
+            for item in entites:
+                if item in summery:
+                    new_entites.append(item)
             hashid=compute_mdhash_id(summery, prefix="")
             
             texts_embedding = self.embedding_model.batch_encode(summery)
+
             
             self.graph.add_node(hashid, 
                                     content=summery, 
                                     embedding=texts_embedding[0].tolist(), 
-                                    entity=entites,
+                                    entity=new_entites,
                                     type="text"
                                     )
             
-            self.contents = pd.concat([self.contents, pd.DataFrame([{
-                "hash_id": hashid, 
-                "content": summery,
-                "embedding": texts_embedding[0].tolist(),
-                "entity": entites
-                }])], ignore_index=True)
+            new_row = pd.DataFrame([{
+                    "hash_id": hashid, 
+                    "content": summery,
+                    "embedding": texts_embedding[0].tolist(),
+                    "entity": new_entites
+                }])
+            insert_index = i+i//merge_size
+            df_before = self.contents.iloc[:insert_index]
+            df_after = self.contents.iloc[insert_index:]
+            self.contents = pd.concat([df_before, new_row, df_after], ignore_index=True)
+
+            # self.contents = pd.concat([self.contents, pd.DataFrame([{
+            #     "hash_id": hashid, 
+            #     "content": summery,
+            #     "embedding": texts_embedding[0].tolist(),
+            #     "entity": new_entites
+            #     }])], ignore_index=True)
         
             for node_id in node_ids:
                 self.graph.add_edge(

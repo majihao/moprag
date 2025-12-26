@@ -34,7 +34,7 @@ class Memory:
 
     def add_memory_pool(self, query, path_inf):
         
-        self.path_memory.append({"query":query,"inf":path_inf,})
+        self.memory_pool.append({"query":query,"inf":path_inf,})
         self.path_memory.clear()
         pass
         
@@ -42,7 +42,7 @@ class Memory:
     def mem_pool_fuse(self,init_query):
         
         prompt=""
-        for item in self.path_memory:
+        for item in self.memory_pool:
             prompt=prompt+"[Q] "+item["query"] +"\n" + "[A] "+item["inf"]+"\n"
         
         messages=mem_dec_prompt(init_query,prompt)
