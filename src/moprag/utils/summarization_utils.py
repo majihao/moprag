@@ -100,7 +100,6 @@ class LLMSummarizationModel(BaseSummarizationModel):
         messages=triple_extraction.teiple_prompt_builder(context,entities)
         response=self.LLMaction(messages) 
         response = re.sub(r'<think\b[^>]*>.*?</think\s*>','',response,flags=re.DOTALL | re.IGNORECASE)
-        print(response)
         try:
             triples_str_list = re.findall(r'\[(.*?)\]', response)
             triples = []
@@ -111,6 +110,7 @@ class LLMSummarizationModel(BaseSummarizationModel):
                     triples.append(parts)
             # for i, triple in enumerate(triples, 1):
             #     print(f"{i}. {triple}")
+            # print(triples)
             return triples
         except (ValueError, SyntaxError) as e:
             return []

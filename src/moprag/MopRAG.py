@@ -138,6 +138,9 @@ class MopRAG:
         self.detail_embedding_store.insert(chunks, entities)
         self.story_embedding_store.insert(chunks, entities)
         self.plot_embedding_store.insert(entities_dicts)
+
+    def add_index(self):
+        pass
      
      
     
@@ -174,7 +177,8 @@ class MopRAG:
 
         round_Record=0
         while round_Record<round:
-            print(round_Record)
+
+            print("-----------Round {}-----------".format(round_Record))
             query_str= "\n".join(query_list)
             self_prob_list=self.self_prob(init_query, query_str ,  contents)
             
@@ -331,8 +335,11 @@ class MopRAG:
 
         
         paths=self.Path_Cognizer(query=query,graph=pruned_graph,contents=pruned_contents,toprank=top_k)
+
+        print("---------paths---------")
+        print(paths)
         
-        paths=self.merge_connected_paths_safe(paths,self.path_extect_slide_windows)
+        paths=self.merge_path_edges(paths,self.path_extect_slide_windows)
 
         print(paths)
 
@@ -373,7 +380,7 @@ class MopRAG:
         hashid=contents['hash_id'].tolist()
         node_query_sim = dict(zip(hashid, sim_scores))
         
-        top2 = sorted(node_query_sim.items(), key=lambda x: x[1], reverse=True)[0:toprank]
+        top2 = sorted(node_query_sim.items(), key=lambda x: x[1], reverse=True)[0:toprank+3]
 
         top2_nodes = [node for node, score in top2]
         #rerank
@@ -381,11 +388,9 @@ class MopRAG:
         # print("top2",top2)
 
         # top2_nodes = [node for node, score in top2]
-        # self.Rerank(query,top2_nodes,content,toprank)
+        Rrerank_nodes=self.rerank(query,top2_nodes,contents,toprank)
 
-
-
-        top2_sorted_by_appearance = [node for node in hashid if node in set(top2_nodes)]
+        top2_sorted_by_appearance = [node for node in hashid if node in set(Rrerank_nodes)]
         
         path=[]
         for i in range(len(top2_sorted_by_appearance)-1):
@@ -607,10 +612,24 @@ class MopRAG:
         return answer
 
     
-    def Rrerank(self,query,hashids,content,top_K)->list:
-        
+    def rerank(self,query,hashids,contents,top_K)->list:
+        print("---------rerank---------")
+        results=[]
+        content_lists=contents[contents['hash_id'].isin(hashids)]["content"].tolist()
+        entity_lists=contents[contents['hash_id'].isin(hashids)]["entity"].tolist()
+        for i in range(len(content_lists)):
+            Triple=self.summarizer.LLMTripleextract(content_lists[i],entity_lists[i])
+            Triple_indies=list(range(len(Triple)))
 
-        pass
+            filtered_indices, filtered_facts, meta=self.dspy_filter.rerank(query,Triple,Triple_indies,len_after_rerank=5)
+            results.append(len(filtered_facts))
+        
+        paired = list(zip(hashids, results))
+        topk_stable = sorted(paired, key=lambda x: x[1], reverse=True)[:top_K]
+
+        topk_hashids = [h for h, s in topk_stable]
+
+        return topk_hashids
     
 
 
@@ -619,7 +638,7 @@ class MopRAG:
         prev_map = {}
         all_nodes = set()
 
-        # 构建链式映射
+
         for p in paths:
             for i in range(len(p) - 1):
                 # 如果已有映射，说明有分叉或冲突（可选报错）
@@ -643,12 +662,57 @@ class MopRAG:
                 path.append(current)
                 current = next_map.get(current)
             merged.append(path)
+        
         merged = merged[0]
-        merged = [merged[i:i+3] for i in range(0, len(merged), 3)]
+        merged = [merged[i:i+path_extect_slide_windows] for i in range(0, len(merged), path_extect_slide_windows)]
 
         return merged
 
     # def query(self, docs):
+
+
+    def merge_path_edges(self, paths, path_extect_slide_windows)->list:
+        if not paths:
+            return []
+        else:
+            lst=[]
+            for item in paths:
+                for i in item:
+                    lst.append(i)
+            path = list(dict.fromkeys(lst))
+            merged = [path[i:i+path_extect_slide_windows] for i in range(0, len(path), path_extect_slide_windows)]
+
+            return merged
+            
+        # else:# 构建 next 映射 和 所有节点集合
+        #     next_map = {}
+        #     all_nodes = set()
+        #     second_nodes = set()  # 所有作为后继（第二个元素）的节点
+
+        #     for a, b in paths:
+        #         next_map[a] = b
+        #         all_nodes.add(a)
+        #         all_nodes.add(b)
+        #         second_nodes.add(b)
+
+        #     # 起点：在 all_nodes 中，但不在 second_nodes 中
+        #     start_candidates = all_nodes - second_nodes
+        #     if len(start_candidates) != 1:
+        #         raise ValueError(f"Expected exactly one start node, got: {start_candidates}")
+            
+        #     start = start_candidates.pop()
+            
+        #     # 从起点开始重建完整路径
+        #     path = [start]
+        #     current = start
+        #     while current in next_map:
+        #         current = next_map[current]
+        #         path.append(current)
+            
+        #     merged = [path[i:i+path_extect_slide_windows] for i in range(0, len(path), path_extect_slide_windows)]
+
+            
+        #     return merged
 
 
 

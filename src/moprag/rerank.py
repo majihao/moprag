@@ -288,31 +288,21 @@ class VLLMWrapper:
             **kwargs
         )
         response=response.choices[0].message.content
-        print("LLM Response:", response)
+        # print("LLM Response:", response)
         return response
 
 
-# config = SimpleNamespace(
-#     llm_name="Qwen3-14B",  # 必须与 vLLM 启动时一致
-#     rerank_dspy_file_path=None,                 # 或指定你的 JSON prompt 文件路径
-# )
-# === 3. 组装 narrtiverag 对象 ===
+
+
 # narrtiverag = SimpleNamespace(
 #     llm_name="Qwen3-14B",  
 #     rerank_dspy_file_path=None,
 #     llm_model=VLLMWrapper(base_url="http://localhost:12344/v1", model_name="Qwen3-14B", api_key="token-abc123")
 # )
 
-# # === 4. 创建 DSPyFilter 实例 ===
+
 # dspy_filter = DSPyFilter(narrtiverag)
-# # query = "Who is CEO?"
-# # candidate_items = [
-# #     ("Bill Gates", "founded", "Microsoft"),
-# #     ("Steve Jobs", "founded", "Apple"),
-# #     ("Satya Nadella", "is CEO of", "Microsoft")
-# # ] 
-# # candidate_indices = [0, 1, 2,]
-# # # === 5. 使用示例 ===
+
 # query = "Who is CEO"
 # candidate_items = [
 #     ("Satya Nadella", "is CEO of", "Microsoft"),
@@ -332,6 +322,6 @@ class VLLMWrapper:
 #     len_after_rerank=2
 # )
 
-# print("Filtered facts:", filtered_facts)
+# print("Filtered facts:", len(filtered_facts))
 
 # print("Filtered facts:", filtered_indices)
