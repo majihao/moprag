@@ -11,6 +11,7 @@ from .prompts.mem_enc import mem_enc_prompt
 from .prompts.path_ext import path_ext_prompt
 from .prompts.try_answer import try_answer_prompt
 from .prompts.self_prob import self_prob_prompt
+from .prompts.try_answer_mc import try_answer_mc_prompt
 
 from typing import Optional, List, Dict
 import re
@@ -91,6 +92,23 @@ class PoolAgent():
         response = re.sub(r'<think>.*?</think>\s*', '', response, flags=re.DOTALL)
         
         return response
+
+    
+    def try_answer_MC(self, query ,inf):
+         
+        messages=try_answer_mc_prompt(inf, query)
+        response = self._call_llm(messages=messages)
+        response = re.sub(r'<think>.*?</think>\s*', '', response, flags=re.DOTALL)
+
+        match = re.search(r'###\s*Final Answer\s*\n\s*$$([ABCD])$$', response)
+        if match:
+            answer = match.group(1)
+            
+        else:
+            answer ="No"
+           
+        
+        return answer
 
     def self_pro(self,query=None, pre=None, cur=None):
         

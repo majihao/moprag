@@ -603,13 +603,21 @@ class MopRAG:
                 raise ValueError(f"Path segments not contiguous: {merged[-1]} != {segment[0]}")
         return merged
     
-    def try_answer(self,query,context):
-
-        answer=self.PoolAgent.try_answer(query,context)
+    def try_answer(self,query,context,question_type):
         
-        if "No"  in answer:
-            return None
-        return answer
+        if question_type=="QA":
+            answer=self.PoolAgent.try_answer(query,context)
+            
+            if "No"  in answer:
+                return None
+            return answer
+        
+        if question_type=="MC":
+            answer=self.PoolAgent.try_answer_MC(query,context)
+            
+            if "No"  in answer:
+                return None
+            return answer
 
     
     def rerank(self,query,hashids,contents,top_K)->list:

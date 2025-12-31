@@ -49,7 +49,10 @@ class BaseConfig:
     
     
 
-
+    Question_type:  str = field(
+        default="QA",
+        metadata={"help":"question type"}
+    )
 
 
     embedding_db_path: str = field(
