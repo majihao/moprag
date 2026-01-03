@@ -44,6 +44,8 @@ class MopRAG:
         self.max_completion_tokens=global_config.max_completion_tokens
         self.temperature=global_config.temperature
         self.stop_sequence=global_config.stop_sequence
+
+        self.question_type=global_config.question_type
         
         self.path_extect_slide_windows=global_config.path_extect_slide_windows_size
 
@@ -207,7 +209,7 @@ class MopRAG:
             #mem_dec
             inf=self.mem_dec(subquery)
             print(inf)
-            answer=self.try_answer(subquery,inf)
+            answer=self.try_answer(subquery,inf,self.question_type)
             if answer is None:
                 continue
             else:
@@ -253,7 +255,7 @@ class MopRAG:
         inf=self.mem_dec(query)
         print(inf)
 
-        answer=self.try_answer(query,inf)
+        answer=self.try_answer(query,inf,self.question_type)
         if answer is None:
             print("cannot answer derestly!")
             Manswer=self.Muti_Round_Query(query,inf,self.multi_round_number)
@@ -349,9 +351,11 @@ class MopRAG:
         
         graph,contents=self._prune_by_entity_alignment_extended(query,query_eneities,graph,contents)
 
+        graph,contents=self.judge_graph_contents(graph,contents)
+
         graph,contents=self._prune_by_similar_and_center(query,graph,contents,normalize_scores=True, alpha=0.6, beta=0.4,pruning_rate=0.3)
         
-
+        graph,contents=self.judge_graph_contents(graph,contents)
         
         return graph, contents
         # pos = nx.spring_layout(self.graph_data, seed=42)  # 固定 seed 保证可复现
@@ -417,7 +421,7 @@ class MopRAG:
         sim_scores = cosine_similarity(query_emb, embs_arr).flatten()
         hashid=contents['hash_id'].tolist()
         node_query_sim = dict(zip(hashid, sim_scores))
-
+  
         best_results = []
         priority_queue = [(-1.0, 1, source, [source])]
        
@@ -691,7 +695,27 @@ class MopRAG:
             merged = [path[i:i+path_extect_slide_windows] for i in range(0, len(path), path_extect_slide_windows)]
 
             return merged
+
+    def judge_graph_contents(self,graph,contents):
+        graph_nodes = set(graph.nodes)
+        content_hashids = set(contents['hash_id'])
+        if graph_nodes == content_hashids:
+
+            return graph,contents
+        else:
+            missing_in_graph = content_hashids - graph_nodes      # 在 df 里但不在图中
+            missing_in_contents = graph_nodes - content_hashids   # 在图中但不在 df 里
+
+            if missing_in_graph:
+                valid_hashids = set(graph.nodes)
+                contents_cleaned = contents[contents['hash_id'].isin(valid_hashids)].reset_index(drop=True)
+                contents=contents_cleaned
+            if missing_in_contents:
+                valid_hashids = set(contents['hash_id'])
+                graph = [node for node in graph.nodes if node not in valid_hashids]
             
+            return graph,contents
+
         # else:# 构建 next 映射 和 所有节点集合
         #     next_map = {}
         #     all_nodes = set()

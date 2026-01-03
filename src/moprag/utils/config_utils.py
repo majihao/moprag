@@ -49,7 +49,7 @@ class BaseConfig:
     
     
 
-    Question_type:  str = field(
+    question_type:  str = field(
         default="QA",
         metadata={"help":"question type"}
     )

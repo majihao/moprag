@@ -8,6 +8,7 @@ Do not add, infer, explain, or supplement any content not explicitly stated in t
 If a passage contains no relevant information, simply ignore that passage;
 If none of the three passages contain relevant information, please answer: "No content related to the query was found in the provided text."
 Maintain objective and accurate language, remaining faithful to the original text.
+Please give a direct answer; do not overthink it.
 """
 
 one_shot_ner_paragraph = """

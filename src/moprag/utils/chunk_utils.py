@@ -63,22 +63,7 @@ class BChunkModel(BaseChunkModel):
         
         return chunks
     
-    def merge_two_chunks(chunk1: str, chunk2: str) -> str:
-
-        if not chunk1:
-            return chunk2
-        if not chunk2:
-            return chunk1
-
-        max_overlap = 0
-        min_len = min(len(chunk1), len(chunk2))
-        
-        for i in range(min_len, 0, -1):
-            if chunk1[-i:] == chunk2[:i]:
-                max_overlap = i
-                break  
-          
-        return chunk1 + chunk2[max_overlap:]
+   
 
 
 

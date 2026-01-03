@@ -30,7 +30,7 @@ def clear_directory(folder_path):
             item.unlink()        
  
 
-clear_directory("/md0/home/majihao/MoPRAG/MopRAG0.2/data/moprag_text_embedding_db")
+# clear_directory("/md0/home/majihao/MoPRAG/MopRAG0.2/data/moprag_text_embedding_db")
 
 with open('/md0/home/majihao/MoPRAG/MopRAG/data/NarrativeQA/Nar_data.json', 'r', encoding='utf-8') as file:
     data = json.load(file)
@@ -41,7 +41,7 @@ document=data['corpus']
 
 
 config=BaseConfig(
-    llm_base_url="http://localhost:12344/v1",
+    llm_base_url="http://localhost:12345/v1",
     llm_api_key="your-llm-api-key-here",
     llm_name="Qwen3-14B",
     embedding_model_name="/data0/models/embeddingmodels/bge-base-en",
@@ -55,7 +55,7 @@ doc=document
 
 qal=[{}]
 
-moprag.index(docs=doc)
+# moprag.index(docs=doc)
 answer=moprag.query("Mr. Kendrew argues that a man with a substantial inheritance needs a wife from high society to secure what?")
 print(answer)
 
